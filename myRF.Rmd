@@ -101,7 +101,7 @@ kl_on_comb <- function(comb, mat) {
 kls <- lapply(combinations, kl_on_comb, hists_tib$mat)
 
 ### Put everything together for analysis
-collected <- tibble(pairs = combinations, emdr = unlist(emdrs), kl  = unlist(kls))
+collected <- tibble(pairs = combinations, kl  = unlist(kls))
 
 ### Add columns to identify animals
 a1_func <- function(pair, names, pos) {
