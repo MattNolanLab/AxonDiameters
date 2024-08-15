@@ -22,3 +22,16 @@ df <- read_excel("MyRF Axon Diameter Measurements 20240709.xlsx", range = "A3:H3
     drop_na() %>%
     mutate(group = as_factor(ifelse(name %in% c("ON7", "ON12", "ON30", "ON55"), "control", "mutant")))
 ```
+
+# Plot the data
+Focus here on plot of individual mice, colour coded by group.
+```{r}
+(plot_by_id <- ggplot(data = df, aes(name, value)) +
+     geom_violin(aes(colour = group), draw_quantiles = c(0.25, 0.5, 0.75)) +
+     theme_cowplot(font_size = 14) +
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    labs(x = 'Animal', y = 'Diameter (μm)', colour = "Group"))
+
+ggsave('Plots/violins.jpeg', plot_by_id)
+```
+
