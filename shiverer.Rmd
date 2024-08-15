@@ -1,0 +1,144 @@
+```{r include=FALSE}
+library(tidyverse)
+library(readxl)
+library(lme4)
+library(ggeffects)
+library(flexmix)
+library(cowplot)
+library(emdist)
+library(philentropy)
+library(dabestr)
+```
+
+# Goals
+We have a dataset contain axon diameters of neurons from the optic nerve of control and mutant zebrafish. We'd like to know if the mean axon diameter, or the distribution of axon diameters, differs between groups. We want to implement tests that take account of within and between animal variance.
+
+Here, we focus on the myRF data set.
+
+# Load and format data
+```{r message = FALSE}
+df <- read_excel("Shiverer Axon Diameter.xlsx", range = "A2:J293") %>%
+    pivot_longer(cols = 1:10) %>%
+    drop_na() %>%
+    mutate(group = as_factor(ifelse(name %in% c("149-4555", "149-4567", "149-4591", "149-4593"), "control", "mutant")))
+```
+
+# Plot the data
+Focus here on plot of individual mice, colour coded by group.
+```{r}
+(plot_by_id <- ggplot(data = df, aes(name, value)) +
+     geom_violin(aes(colour = group), draw_quantiles = c(0.25, 0.5, 0.75)) +
+     theme_cowplot(font_size = 14) +
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    labs(x = 'Animal', y = 'Diameter (μm)', colour = "Group"))
+
+ggsave('Plots/violins_shiv.jpeg', plot_by_id)
+```
+
+
+# Tests for differences in means
+```{r}
+mm_t <- lmer(log(value) ~ group + (1 | name), data = df)
+mm_t_null <- lmer(log(value) ~ (1 | name), data = df)
+summary(mm_t)
+anova(mm_t, mm_t_null)
+```
+
+
+Generate histograms for all animals
+```{r make histograms}
+### Make histograms for each animal
+### Use log transformed data
+names = unique(df$name)
+### If submean = 1 then will substract means before making histograms 
+histfun <- function(name, df, submean = 0) {
+    sub <- ifelse(submean == 1, mean(df$value[df$name==name]), 0)
+    hist(log(df$value[df$name==name]-sub), seq(-2,2,0.1), plot = FALSE)
+}
+hists <- sapply(names, histfun, df, submean=0)
+
+### Convert results to tibble for use with tidyverse functions
+rns <- rownames(hists)
+hists_tib <- as_tibble(hists) %>%
+    rownames_to_column(var = "rowname") %>%
+    pivot_longer(-rowname, names_to = "column", values_to = "value") %>%
+    pivot_wider(names_from = rowname, values_from = value)
+colnames(hists_tib) <- c("animal", rns)
+
+    
+ggconvfun <- function(mids, density) {
+    gghist <- cbind(mids, density)
+    ggplot(gghist, aes(mids, density)) +
+        geom_col() +
+        theme_cowplot()
+}
+
+gghists <- map2(hists_tib$mids, hists_tib$density, ggconvfun)
+
+plot_grid(plotlist = gghists)
+```
+
+
+# Evaluate distributions
+```{r}
+### Make histograms compatible with comparison tools
+hists_as_matrix <- function(density, mids) {matrix(c(density, mids), ncol=2)}
+
+hists_tib <- hists_tib %>%
+    mutate(mat = map2(density, mids, hists_as_matrix))
+
+### List all combinations of histograms
+combinations <- combn(1:length(names), 2, simplify = FALSE)
+
+### Calculate KL divergence for all combinations
+kl_on_comb <- function(comb, mat) {
+    P <- mat[[comb[[1]]]][,1] / sum(mat[[comb[[1]]]][,1])
+    Q <- mat[[comb[[2]]]][,1] / sum(mat[[comb[[2]]]][,1])
+    x <- rbind(P,Q)
+    KL(x)
+}
+
+kls <- lapply(combinations, kl_on_comb, hists_tib$mat)
+
+### Put everything together for analysis
+collected <- tibble(pairs = combinations, kl  = unlist(kls))
+
+### Add columns to identify animals
+a1_func <- function(pair, names, pos) {
+    names[pair[[pos]][1]]
+    }
+collected$pair1 <- sapply(collected$pairs, a1_func, names, 1)
+collected$pair2 <- sapply(collected$pairs, a1_func, names, 2)
+
+### Reorganise
+get_group <- function(name, df) {as.character(df$group[[grep(name, df$name)[[1]]]])}
+grouplist <- lapply(names, get_group, df)
+
+group_lookup <- function(id, names, grouplist) {grouplist[[grep(id, names)]]}
+compare_groups <- function(g1, g2) {g1 == g2}
+
+collected <- collected %>%
+    mutate(group1 = map_chr(pair1, group_lookup, names, grouplist),
+           group2 = map_chr(pair2, group_lookup, names, grouplist),
+           samegroup = map2_lgl(group1, group2, compare_groups))
+
+### Compare KL divergece for pairs that are from the same group with pairs from different groups
+wilcox.test(kl ~ samegroup, data = collected)
+```
+
+Make dabest plots for the above compariosns. Use dabest_plot.
+```{r}
+dabest_obj_kl.mean_diff <- load(
+  data = collected,
+  x = samegroup,
+  y = kl,
+  idx = c("TRUE", "FALSE")
+) %>%
+  mean_diff()
+
+(de_kl <- dabest_plot(dabest_obj_kl.mean_diff, TRUE,
+                      swarm_label = 'KL divergence'))
+
+ggsave('Plots/KL_dabest_shiv.jpeg', de_kl)
+```
+
