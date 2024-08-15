@@ -35,3 +35,12 @@ Focus here on plot of individual mice, colour coded by group.
 ggsave('Plots/violins.jpeg', plot_by_id)
 ```
 
+
+# Tests for differences in means
+```{r}
+mm_t <- lmer(log(value) ~ group + (1 | name), data = df)
+mm_t_null <- lmer(log(value) ~ (1 | name), data = df)
+summary(mm_t)
+anova(mm_t, mm_t_null)
+```
+
