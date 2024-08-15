@@ -30,7 +30,7 @@ Focus here on plot of individual mice, colour coded by group.
      geom_violin(aes(colour = group), draw_quantiles = c(0.25, 0.5, 0.75)) +
      theme_cowplot(font_size = 14) +
      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-    labs(x = 'Animal', y = 'Diameter (μm)', colour = "Group"))
+    labs(x = 'Animal', y = 'Diameter (\u00B5 m)', colour = "Group"))
 
 ggsave('Plots/violins.jpeg', plot_by_id)
 ```
