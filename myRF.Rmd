@@ -1,0 +1,24 @@
+```{r include=FALSE}
+library(tidyverse)
+library(readxl)
+library(lme4)
+library(ggeffects)
+library(flexmix)
+library(cowplot)
+library(emdist)
+library(philentropy)
+library(dabestr)
+```
+
+# Goals
+We have a dataset contain axon diameters of neurons from the optic nerve of control and mutant zebrafish. We'd like to know if the mean axon diameter, or the distribution of axon diameters, differs between groups. We want to implement tests that take account of within and between animal variance.
+
+Here, we focus on the myRF data set.
+
+# Load and format data
+```{r message = FALSE}
+df <- read_excel("MyRF Axon Diameter Measurements 20240709.xlsx", range = "A3:H328") %>%
+    pivot_longer(cols = 1:8) %>%
+    drop_na() %>%
+    mutate(group = as_factor(ifelse(name %in% c("ON7", "ON12", "ON30", "ON55"), "control", "mutant")))
+```
