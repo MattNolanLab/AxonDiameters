@@ -125,3 +125,20 @@ collected <- collected %>%
 ### Compare KL divergece for pairs that are from the same group with pairs from different groups
 wilcox.test(kl ~ samegroup, data = collected)
 ```
+
+Make dabest plots for the above compariosns. Use dabest_plot.
+```{r}
+dabest_obj_kl.mean_diff <- load(
+  data = collected,
+  x = samegroup,
+  y = kl,
+  idx = c("TRUE", "FALSE")
+) %>%
+  mean_diff()
+
+(de_kl <- dabest_plot(dabest_obj_kl.mean_diff, TRUE,
+                      swarm_label = 'KL divergence'))
+
+ggsave('Plots/KL_dabest.jpeg', de_kl)
+```
+
