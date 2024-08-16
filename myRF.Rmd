@@ -20,7 +20,13 @@ Here, we focus on the myRF data set.
 df <- read_excel("MyRF Axon Diameter Measurements 20240709.xlsx", range = "A3:H328") %>%
     pivot_longer(cols = 1:8) %>%
     drop_na() %>%
-    mutate(group = as_factor(ifelse(name %in% c("ON7", "ON12", "ON30", "ON55"), "control", "mutant")))
+    mutate(group = as_factor(ifelse(name %in% c("ON7", "ON12", "ON30", "ON55"), "control", "mutant")),
+           litter = as_factor(ifelse(name %in% c("ON7", "ON12"), "litter1",
+                              ifelse(name %in% c("ON24-M", "ON25-M", "ON30"), "litter2",
+                                                 ifelse(name %in% c("ON32-M"), "litter3",
+                                                 ifelse(name %in% c("ON48-M"), "litter4",
+                                                 ifelse(name %in% c("ON55"), "litter5", "error")))))),
+           processed = as_factor(ifelse(litter %in% c("litter1", "litter2"),"processed1", "processed2")))
 ```
 
 # Plot the data
@@ -42,6 +48,18 @@ mm_t <- lmer(log(value) ~ group + (1 | name), data = df)
 mm_t_null <- lmer(log(value) ~ (1 | name), data = df)
 summary(mm_t)
 anova(mm_t, mm_t_null)
+```
+# Test again with more complicated random effects stuctures
+```{r}
+mm_t_2 <- lmer(log(value) ~ group + (1 | litter/name), data = df)
+mm_t_null_2 <- lmer(log(value) ~ (1 | litter/name), data = df)
+summary(mm_t_2)
+anova(mm_t_2, mm_t_null_2)
+
+mm_t_3 <- lmer(log(value) ~ group + (1 | processed/name), data = df)
+mm_t_null_3 <- lmer(log(value) ~ (1 | processed/name), data = df)
+summary(mm_t_3)
+anova(mm_t_2, mm_t_null_3)
 ```
 
 
