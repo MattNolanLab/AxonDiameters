@@ -8,6 +8,7 @@ library(cowplot)
 library(emdist)
 library(philentropy)
 library(dabestr)
+library(rogme)
 ```
 
 # Goals
@@ -27,6 +28,9 @@ df <- read_excel("MyRF Axon Diameter Measurements 20240709.xlsx", range = "A3:H3
                                                  ifelse(name %in% c("ON48-M"), "litter4",
                                                  ifelse(name %in% c("ON55"), "litter5", "error")))))),
            processed = as_factor(ifelse(litter %in% c("litter1", "litter2"),"processed1", "processed2")))
+
+df$group <- as.factor(df$group)
+df$name <- as.factor(df$name)
 ```
 
 # Plot the data
@@ -61,6 +65,30 @@ mm_t_null_3 <- lmer(log(value) ~ (1 | processed/name), data = df)
 summary(mm_t_3)
 anova(mm_t_2, mm_t_null_3)
 ```
+
+# Evaluate residuals
+```{r fig.width = 7, fig.height = 2}
+df$residuals_mm_t <- resid(mm_t)
+df$fitted_mm_t <- fitted(mm_t)
+(res_t_plot <- ggplot(data = df, aes(x = fitted_mm_t, y = residuals_mm_t)) +
+    geom_point(aes(colour = group)) +
+    theme_cowplot())
+```
+
+# Compare residual distributions between groups, for the untransformed data first and then for the log-transformed data. 
+```{r Compare distribtions}
+### We could use a KS test:
+ks.test(residuals_mm_t ~ group, data = df)
+```
+This suggests differences between groups in the variance, but doesn't account for within vs between subject effects in the residuals.  But worry here is that we don't treat animals as indepwndent.  Instead calculate SD for each animal and compare groups:
+
+```{r}
+gr_t <- df %>% group_by(group, name) %>% summarize(avg_r = sd(residuals_mm_t))
+t.test(avg_r ~ group, data = gr_t)
+```
+Hard to interpret because group sizes are small. No firm evidence for difference in distributions but wouldn't rule it out either.
+
+
 
 
 Generate histograms for all animals
@@ -164,3 +192,15 @@ dabest_obj_kl.mean_diff <- load(
 ggsave('Plots/KL_dabest.jpeg', de_kl)
 ```
 
+
+
+Another approach is to compare the distributions using a hierarchical shift function. See: https://github.com/GRousselet/rogme/blob/master/docs/hsf.md
+
+```{r}
+out <- hsf(df, log(value) ~ group + name, qseq = c(seq(0, 1, 0.1)))
+
+plot_hsf(out)
+
+out$adjusted_pvalues
+```
+Again, data size too small to be conclusive.
