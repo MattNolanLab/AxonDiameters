@@ -100,10 +100,11 @@ plot_grid(plotlist = gghists)
 # Evaluate distributions
 ```{r}
 ### Make histograms compatible with comparison tools
-hists_as_matrix <- function(density, mids) {matrix(c(density, mids), ncol=2)}
+hists_as_matrix <- function(counts, mids) {matrix(c(counts/sum(counts), mids), ncol=2)}
 
 hists_tib <- hists_tib %>%
-    mutate(mat = map2(density, mids, hists_as_matrix))
+    mutate(mat_2 = map2(density, mids, hists_as_matrix),
+           mat = map2(counts, mids, hists_as_matrix))
 
 ### List all combinations of histograms
 combinations <- combn(1:length(names), 2, simplify = FALSE)
@@ -112,8 +113,11 @@ combinations <- combn(1:length(names), 2, simplify = FALSE)
 kl_on_comb <- function(comb, mat) {
     P <- mat[[comb[[1]]]][,1] / sum(mat[[comb[[1]]]][,1])
     Q <- mat[[comb[[2]]]][,1] / sum(mat[[comb[[2]]]][,1])
-    x <- rbind(P,Q)
-    KL(x)
+### check order so that control is left in x
+### if(df$group[[comb[[1]]]]=="mutant") {x <- rbind(Q,P)} else {x <- rbind(P,Q)}
+x <- rbind(P,Q)
+### KL(x)
+    distance(x, "taneja") #pearson(asymmetric), divergence (symmetric), clark(symmetric), taneja (symmetric) or kullback-leibler (asymmetric)
 }
 
 kls <- lapply(combinations, kl_on_comb, hists_tib$mat)
