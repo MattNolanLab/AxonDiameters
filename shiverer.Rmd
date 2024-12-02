@@ -36,6 +36,16 @@ Focus here on plot of individual mice, colour coded by group.
 ggsave('Plots/violins_shiv.jpeg', plot_by_id)
 ```
 
+```{r}
+(plot_by_id <- ggplot(data = df, aes(name, log(value))) +
+     geom_violin(aes(colour = group), draw_quantiles = c(0.25, 0.5, 0.75)) +
+     theme_cowplot(font_size = 14) +
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    labs(x = 'Animal', y = 'Diameter (\u00B5 m)', colour = "Group"))
+
+ggsave('Plots/violins_log_shiv.jpeg', plot_by_id)
+```
+
 
 # Tests for differences in means
 ```{r}
@@ -91,13 +101,14 @@ plot_grid(plotlist = gghists)
 
 # Evaluate distributions
 Use package lqmm (https://www.jstatsoft.org/article/view/v057i13) to evaluate potential differences in the distributions.
+Use Nelder-Mead optimization (derivative-free method) as gives fits with much narrower bounds on the intercept.
 ```{r}
-fit.lqmm <- lqmm(fixed = value ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(LP_max_iter = 5000))
+fit.lqmm <- lqmm(fixed = value ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(method = "df", LP_max_iter = 5000))
 summary(fit.lqmm, R = 500, seed = 2)
 ```
 
 ```{r}
-fit.log.lqmm <- lqmm(fixed = log(value) ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(LP_max_iter = 5000))
+fit.log.lqmm <- lqmm(fixed = log(value) ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(method = "df", LP_max_iter = 5000))
 summary(fit.log.lqmm, R = 500, seed = 2)
 ```
 
@@ -114,6 +125,7 @@ hists_tib <- hists_tib %>%
 combinations <- combn(1:length(names), 2, simplify = FALSE)
 
 ### Calculate KL divergence for all combinations
+Important note: this is incorrect as KL is aymmetric. Could work with other tests of distributions instead, such as earth movers distance, etc.
 kl_on_comb <- function(comb, mat) {
     P <- mat[[comb[[1]]]][,1] / sum(mat[[comb[[1]]]][,1])
     Q <- mat[[comb[[2]]]][,1] / sum(mat[[comb[[2]]]][,1])
