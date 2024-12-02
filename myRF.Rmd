@@ -9,6 +9,7 @@ library(emdist)
 library(philentropy)
 library(dabestr)
 library(rogme)
+library(lqmm)
 ```
 
 # Goals
@@ -48,14 +49,22 @@ ggsave('Plots/violins.jpeg', plot_by_id)
 
 # Tests for differences in means
 ```{r}
+mm <- lmer(value ~ group + (1 | name), data = df)
+mm_null <- lmer(value ~ (1 | name), data = df)
+summary(mm)
+anova(mm, mm_null)
+```
+
+```{r}
 mm_t <- lmer(log(value) ~ group + (1 | name), data = df)
 mm_t_null <- lmer(log(value) ~ (1 | name), data = df)
 summary(mm_t)
 anova(mm_t, mm_t_null)
 ```
+
 # Test again with more complicated random effects stuctures
 ```{r}
-mm_t_2 <- lmer(log(value) ~ group + (1 | litter/name), data = df)
+vmm_t_2 <- lmer(log(value) ~ group + (1 | litter/name), data = df)
 mm_t_null_2 <- lmer(log(value) ~ (1 | litter/name), data = df)
 summary(mm_t_2)
 anova(mm_t_2, mm_t_null_2)
@@ -86,7 +95,7 @@ This suggests differences between groups in the variance, but doesn't account fo
 gr_t <- df %>% group_by(group, name) %>% summarize(avg_r = sd(residuals_mm_t))
 t.test(avg_r ~ group, data = gr_t)
 ```
-Hard to interpret because group sizes are small. No firm evidence for difference in distributions but wouldn't rule it out either.
+Hard to interpret because group sizes are small. No firm evidence for difference in distributions.
 
 
 
@@ -126,6 +135,18 @@ plot_grid(plotlist = gghists)
 
 
 # Evaluate distributions
+```{r}
+fit.lqmm <- lqmm(fixed = value ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(method = "df", LP_max_iter = 5000))
+summary(fit.lqmm, R = 500, seed = 2)
+```
+
+```{r}
+fit.log.lqmm <- lqmm(fixed = log(value) ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(method = "df", LP_max_iter = 5000))
+summary(fit.log.lqmm, R = 500, seed = 2)
+```
+
+
+# Additional hacky attempts to evaluate distributions
 ```{r}
 ### Make histograms compatible with comparison tools
 hists_as_matrix <- function(counts, mids) {matrix(c(counts/sum(counts), mids), ncol=2)}
