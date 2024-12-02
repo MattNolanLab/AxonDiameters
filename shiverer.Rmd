@@ -8,6 +8,7 @@ library(cowplot)
 library(emdist)
 library(philentropy)
 library(dabestr)
+library(lqmm)
 ```
 
 # Goals
@@ -38,6 +39,14 @@ ggsave('Plots/violins_shiv.jpeg', plot_by_id)
 
 # Tests for differences in means
 ```{r}
+mm_t <- lmer(value ~ group + (1 | name), data = df)
+mm_9t_null <- lmer(value ~ (1 | name), data = df)
+summary(mm_t)
+anova(mm_t, mm_t_null)
+```
+
+# Same test but with log transformed data
+```{r}
 mm_t <- lmer(log(value) ~ group + (1 | name), data = df)
 mm_t_null <- lmer(log(value) ~ (1 | name), data = df)
 summary(mm_t)
@@ -45,7 +54,8 @@ anova(mm_t, mm_t_null)
 ```
 
 
-Generate histograms for all animals
+
+# Generate histograms for all animals
 ```{r make histograms}
 ### Make histograms for each animal
 ### Use log transformed data
@@ -80,6 +90,19 @@ plot_grid(plotlist = gghists)
 
 
 # Evaluate distributions
+Use package lqmm (https://www.jstatsoft.org/article/view/v057i13) to evaluate potential differences in the distributions.
+```{r}
+fit.lqmm <- lqmm(fixed = value ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(LP_max_iter = 5000))
+summary(fit.lqmm, R = 500, seed = 2)
+```
+
+```{r}
+fit.log.lqmm <- lqmm(fixed = log(value) ~ group, random = ~1, group = name, tau = c(0.25,0.5, 0.75), nK = 7, type = "normal", data = df, control = c(LP_max_iter = 5000))
+summary(fit.log.lqmm, R = 500, seed = 2)
+```
+
+
+# Hack together additional tests for differences in distributions
 ```{r}
 ### Make histograms compatible with comparison tools
 hists_as_matrix <- function(density, mids) {matrix(c(density, mids), ncol=2)}
@@ -126,7 +149,7 @@ collected <- collected %>%
 wilcox.test(kl ~ samegroup, data = collected)
 ```
 
-Make dabest plots for the above compariosns. Use dabest_plot.
+Make dabest plots for the above comparisons. Use dabest_plot.
 ```{r}
 dabest_obj_kl.mean_diff <- load(
   data = collected,
