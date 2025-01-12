@@ -2,10 +2,7 @@
 library(tidyverse)
 library(readxl)
 library(lme4)
-library(ggeffects)
-library(flexmix)
 library(cowplot)
-library(emdist)
 library(philentropy)
 library(dabestr)
 library(rogme)
@@ -64,7 +61,7 @@ anova(mm_t, mm_t_null)
 
 # Test again with more complicated random effects stuctures
 ```{r}
-vmm_t_2 <- lmer(log(value) ~ group + (1 | litter/name), data = df)
+mm_t_2 <- lmer(log(value) ~ group + (1 | litter/name), data = df)
 mm_t_null_2 <- lmer(log(value) ~ (1 | litter/name), data = df)
 summary(mm_t_2)
 anova(mm_t_2, mm_t_null_2)
@@ -146,82 +143,4 @@ summary(fit.log.lqmm, R = 500, seed = 2)
 ```
 
 
-# Additional hacky attempts to evaluate distributions
-```{r}
-### Make histograms compatible with comparison tools
-hists_as_matrix <- function(counts, mids) {matrix(c(counts/sum(counts), mids), ncol=2)}
 
-hists_tib <- hists_tib %>%
-    mutate(mat_2 = map2(density, mids, hists_as_matrix),
-           mat = map2(counts, mids, hists_as_matrix))
-
-### List all combinations of histograms
-combinations <- combn(1:length(names), 2, simplify = FALSE)
-
-### Calculate KL divergence for all combinations
-kl_on_comb <- function(comb, mat) {
-    P <- mat[[comb[[1]]]][,1] / sum(mat[[comb[[1]]]][,1])
-    Q <- mat[[comb[[2]]]][,1] / sum(mat[[comb[[2]]]][,1])
-### check order so that control is left in x
-### if(df$group[[comb[[1]]]]=="mutant") {x <- rbind(Q,P)} else {x <- rbind(P,Q)}
-x <- rbind(P,Q)
-### KL(x)
-    distance(x, "taneja") #pearson(asymmetric), divergence (symmetric), clark(symmetric), taneja (symmetric) or kullback-leibler (asymmetric)
-}
-
-kls <- lapply(combinations, kl_on_comb, hists_tib$mat)
-
-### Put everything together for analysis
-collected <- tibble(pairs = combinations, kl  = unlist(kls))
-
-### Add columns to identify animals
-a1_func <- function(pair, names, pos) {
-    names[pair[[pos]][1]]
-    }
-collected$pair1 <- sapply(collected$pairs, a1_func, names, 1)
-collected$pair2 <- sapply(collected$pairs, a1_func, names, 2)
-
-### Reorganise
-get_group <- function(name, df) {as.character(df$group[[grep(name, df$name)[[1]]]])}
-grouplist <- lapply(names, get_group, df)
-
-group_lookup <- function(id, names, grouplist) {grouplist[[grep(id, names)]]}
-compare_groups <- function(g1, g2) {g1 == g2}
-
-collected <- collected %>%
-    mutate(group1 = map_chr(pair1, group_lookup, names, grouplist),
-           group2 = map_chr(pair2, group_lookup, names, grouplist),
-           samegroup = map2_lgl(group1, group2, compare_groups))
-
-### Compare KL divergece for pairs that are from the same group with pairs from different groups
-wilcox.test(kl ~ samegroup, data = collected)
-```
-
-Make dabest plots for the above compariosns. Use dabest_plot.
-```{r}
-dabest_obj_kl.mean_diff <- load(
-  data = collected,
-  x = samegroup,
-  y = kl,
-  idx = c("TRUE", "FALSE")
-) %>%
-  mean_diff()
-
-(de_kl <- dabest_plot(dabest_obj_kl.mean_diff, TRUE,
-                      swarm_label = 'KL divergence'))
-
-ggsave('Plots/KL_dabest.jpeg', de_kl)
-```
-
-
-
-Another approach is to compare the distributions using a hierarchical shift function. See: https://github.com/GRousselet/rogme/blob/master/docs/hsf.md
-
-```{r}
-out <- hsf(df, log(value) ~ group + name, qseq = c(seq(0, 1, 0.1)))
-
-plot_hsf(out)
-
-out$adjusted_pvalues
-```
-Again, data size too small to be conclusive.
